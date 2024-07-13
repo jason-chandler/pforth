@@ -30,26 +30,264 @@
 
 
 #include "pf_all.h"
+#include <dlfcn.h>
+#include <stdio.h>
+#include <stdarg.h>
 
-static cell_t CTest0( cell_t Val );
-static void CTest1( cell_t Val1, cell_t Val2 );
+static void pf_dlopen_impl(char* lib_path) {
+    void* handle = dlopen(lib_path, RTLD_LAZY);
+    if (!handle) {
+        fprintf(stderr, "%s\n", dlerror());
+        free(lib_path);
+        return;
+    }
+
+    uintptr_t handle_address = (uintptr_t)handle;
+    free(lib_path);
+    PUSH_DATA_STACK(handle_address);
+}
+
+static void pf_dlsym_impl(void* lib_ptr, char* func_name) {
+    void* handle = lib_ptr;
+    if (!handle) {
+        fprintf(stderr, "%s\n", dlerror());
+        free(func_name);
+        return;
+    }
+
+    void* (*func)();
+    *(void**)(&func) = dlsym(handle, func_name);
+    const char* dlsym_error = dlerror();
+    if (dlsym_error) {
+        fprintf(stderr, "%s\n", dlsym_error);
+        free(func_name);
+        return;
+    }
+
+    free(func_name);
+    PUSH_DATA_STACK(func);
+}
+
+
+
+static void pf_foreign_call_with_return_impl(void* (*func)(), int arg_count, ...) {
+    void* return_val = NULL;
+    va_list args;
+    va_start(args, arg_count);
+    if (arg_count == 0) {
+        return_val = ((void* (*)())func)();
+    } else if (arg_count == 1) {
+        return_val = ((void* (*)(void*))func)(va_arg(args, void*));
+    } else if (arg_count == 2) {
+        return_val = ((void* (*)(void*, void*))func)(va_arg(args, void*), va_arg(args, void*));
+    } else if (arg_count == 3) {
+        return_val = ((void* (*)(void*, void*, void*))func)(va_arg(args, void*), va_arg(args, void*),  va_arg(args, void*));
+    } else if (arg_count == 4) {
+        return_val = ((void* (*)(void*, void*, void*, void*))func)(va_arg(args, void*), va_arg(args, void*), va_arg(args, void*), va_arg(args, void*));
+    } else if (arg_count == 5) {
+        return_val = ((void* (*)(void*, void*, void*, void*, void*))func)(va_arg(args, void*), va_arg(args, void*), va_arg(args, void*), va_arg(args, void*), va_arg(args, void*));
+    }
+    // add more as needed, I don't want to write a macro and I don't know the correct way to do this otherwise
+
+    va_end(args);
+
+    if(return_val != NULL) {
+       PUSH_DATA_STACK(return_val);
+    }
+
+}
+
+
+static void pf_foreign_call_without_return_impl(void (*func)(), int arg_count, ...) {
+    va_list args;
+    va_start(args, arg_count);
+    if (arg_count == 0) {
+        ((void (*)())func)();
+    } else if (arg_count == 1) {
+        ((void (*)(void*))func)(va_arg(args, void*));
+    } else if (arg_count == 2) {
+        ((void (*)(void*, void*))func)(va_arg(args, void*), va_arg(args, void*));
+    } else if (arg_count == 3) {
+        ((void (*)(void*, void*, void*))func)(va_arg(args, void*), va_arg(args, void*),  va_arg(args, void*));
+    } else if (arg_count == 4) {
+        ((void (*)(void*, void*, void*, void*))func)(va_arg(args, void*), va_arg(args, void*), va_arg(args, void*), va_arg(args, void*));
+    } else if (arg_count == 5) {
+        ((void (*)(void*, void*, void*, void*, void*))func)(va_arg(args, void*), va_arg(args, void*), va_arg(args, void*), va_arg(args, void*), va_arg(args, void*));
+    }
+    // add more as needed, I don't want to write a macro and I don't know the correct way to do this otherwise
+
+    va_end(args);
+
+    }
+
+
+
+
+// Function to dynamically call any function with arguments
+static void call_function(char* lib_path, char* func_name, int arg_count, ...) {
+    void* handle = dlopen(lib_path, RTLD_LAZY);
+    if (!handle) {
+        fprintf(stderr, "%s\n", dlerror());
+        free(lib_path);
+        free(func_name);
+        return;
+    }
+
+    void *(*func)();
+    *(void**)(&func) = dlsym(handle, func_name);
+    const char* dlsym_error = dlerror();
+    if (dlsym_error) {
+        fprintf(stderr, "%s\n", dlsym_error);
+        free(lib_path);
+        free(func_name);
+        dlclose(handle);
+        return;
+    }
+
+    va_list args;
+    va_start(args, arg_count);
+    if (arg_count == 0) {
+        ((void (*)())func)();
+    } else if (arg_count == 1) {
+        ((void (*)(void*))func)(va_arg(args, void*));
+    } else if (arg_count == 2) {
+        ((void (*)(void*, void*))func)(va_arg(args, void*), va_arg(args, void*));
+    } else if (arg_count == 3) {
+        ((void (*)(void*, void*, void*))func)(va_arg(args, void*), va_arg(args, void*),  va_arg(args, void*));
+    } else if (arg_count == 4) {
+        ((void (*)(void*, void*, void*, void*))func)(va_arg(args, void*), va_arg(args, void*), va_arg(args, void*), va_arg(args, void*));
+    } else if (arg_count == 5) {
+        ((void (*)(void*, void*, void*, void*, void*))func)(va_arg(args, void*), va_arg(args, void*), va_arg(args, void*), va_arg(args, void*), va_arg(args, void*));
+    }
+    // add more as needed, I don't want to write a macro and I don't know the correct way to do this otherwise
+
+    va_end(args);
+
+    free(lib_path);
+    free(func_name);
+    dlclose(handle);
+}
+
+static void pf_system_impl(char* sys) {
+    int result = system(sys);
+    free(sys);
+    PUSH_DATA_STACK(result);
+}
 
 /****************************************************************
 ** Step 1: Put your own special glue routines here
 **     or link them in from another file or library.
 ****************************************************************/
-static cell_t CTest0( cell_t Val )
-{
-    MSG_NUM_D("CTest0: Val = ", Val);
-    return Val+1;
+/* static cell_t CTest0( cell_t Val ) */
+/* { */
+/*     MSG_NUM_D("CTest0: Val = ", Val); */
+/*     return Val+1; */
+/* } */
+
+/* static void CTest1( cell_t Val1, cell_t Val2 ) */
+/* { */
+
+/*     MSG("CTest1: Val1 = "); ffDot(Val1); */
+/*     MSG_NUM_D(", Val2 = ", Val2); */
+/* } */
+
+static void pf_system() {
+    int external_program_name_length = POP_DATA_STACK;
+    char* program_name_ptr = (char*)malloc(sizeof(char)*(external_program_name_length + 1));
+    const char* program_name = (const char*)POP_DATA_STACK;
+    strncpy(program_name_ptr, program_name, external_program_name_length);
+    program_name_ptr[external_program_name_length + 1] = ' ';
+
+    pf_system_impl(program_name_ptr);
 }
 
-static void CTest1( cell_t Val1, cell_t Val2 )
-{
+static void pf_foreign_call() {
+    int is_void_return = (int)POP_DATA_STACK;
+    int arg_count = (int)POP_DATA_STACK;
 
-    MSG("CTest1: Val1 = "); ffDot(Val1);
-    MSG_NUM_D(", Val2 = ", Val2);
+    void *(*func)();
+    void (*vfunc)();
+
+    if(is_void_return == 0) {
+        *(void**)(&func) = (void*)POP_DATA_STACK;
+    } {
+        *(void**)(&vfunc) = (void*)POP_DATA_STACK;
+    }
+
+
+    // Collect arguments based on arg_count
+    void* args[10];
+    for (int i = 0; i < arg_count; i++) {
+        args[i] = (void*)POP_DATA_STACK;
+    }
+
+    if(is_void_return == 0) {
+        pf_foreign_call_with_return_impl(func, arg_count, args);
+    } else {
+        pf_foreign_call_without_return_impl(vfunc, arg_count, args);
+    }
 }
+
+static void pf_call_function() {
+    int arg_count = (int)POP_DATA_STACK;
+    int func_name_length = (int)POP_DATA_STACK;
+    char* func_name_ptr = (char*)malloc(sizeof(char)*(func_name_length + 1));
+    const char* func_name = (const char*)POP_DATA_STACK;
+    strncpy(func_name_ptr, func_name, func_name_length);
+    func_name_ptr[func_name_length + 1] = '\0';
+
+    int lib_path_length = (int)POP_DATA_STACK;
+    char* lib_path_ptr = (char*)malloc(sizeof(char)*(lib_path_length + 1));
+    const char* lib_path = (const char*)POP_DATA_STACK;
+
+    strncpy(lib_path_ptr, lib_path, lib_path_length);
+    lib_path_ptr[lib_path_length + 1] = '\0';
+
+    // Collect arguments based on arg_count
+    void* args[10]; // Maximum 10 arguments for simplicity
+    for (int i = 0; i < arg_count; i++) {
+        args[i] = (void*)POP_DATA_STACK;
+    }
+
+
+    call_function(lib_path_ptr, func_name_ptr, arg_count, args);
+    }
+
+static void test_fun() {
+    int i = (int)POP_DATA_STACK;
+    printf("%i", i);
+}
+
+static void pf_dlsym() {
+    int func_name_length = (int)POP_DATA_STACK;
+    char* func_name_ptr = (char*)malloc(sizeof(char)*(func_name_length + 1));
+    const char* func_name = (const char*)POP_DATA_STACK;
+    strncpy(func_name_ptr, func_name, func_name_length);
+    func_name_ptr[func_name_length + 1] = '\0';
+
+    void* lib_ptr = (void*)POP_DATA_STACK;
+
+    pf_dlsym_impl(lib_ptr, func_name_ptr);
+}
+
+
+static void pf_dlopen() {
+    int lib_path_length = (int)POP_DATA_STACK;
+    char* lib_path_ptr = (char*)malloc(sizeof(char)*(lib_path_length + 1));
+    const char* lib_path = (const char*)POP_DATA_STACK;
+
+    strncpy(lib_path_ptr, lib_path, lib_path_length);
+    lib_path_ptr[lib_path_length + 1] = '\0';
+
+    pf_dlopen_impl(lib_path_ptr);
+}
+
+static void pf_dlclose() {
+    void* handle = (void*)POP_DATA_STACK;
+    dlclose(handle);
+}
+
+
 
 /****************************************************************
 ** Step 2: Create CustomFunctionTable.
@@ -65,13 +303,18 @@ static void CTest1( cell_t Val1, cell_t Val2 )
 ** Do not change the name of LoadCustomFunctionTable()!
 ** It is called by the pForth kernel.
 */
-#define NUM_CUSTOM_FUNCTIONS  (2)
+#define NUM_CUSTOM_FUNCTIONS  (7)
 CFunc0 CustomFunctionTable[NUM_CUSTOM_FUNCTIONS];
 
 Err LoadCustomFunctionTable( void )
 {
-    CustomFunctionTable[0] = CTest0;
-    CustomFunctionTable[1] = CTest1;
+    CustomFunctionTable[0] = pf_call_function;
+    CustomFunctionTable[1] = test_fun;
+    CustomFunctionTable[2] = pf_foreign_call;
+    CustomFunctionTable[3] = pf_dlopen;
+    CustomFunctionTable[4] = pf_dlclose;
+    CustomFunctionTable[5] = pf_dlsym;
+    CustomFunctionTable[6] = pf_system;
     return 0;
 }
 
@@ -82,8 +325,13 @@ Err LoadCustomFunctionTable( void )
 */
 CFunc0 CustomFunctionTable[] =
 {
-    (CFunc0) CTest0,
-    (CFunc0) CTest1
+    (CFunc0) pf_call_function,
+    (CFunc0) test_fun,
+    (CFunc0) pf_foreign_call,
+    (CFunc0) pf_dlopen,
+    (CFunc0) pf_dlclose,
+    (CFunc0) pf_dlsym,
+    (CFunc0) pf_system
 };
 #endif
 
@@ -102,10 +350,20 @@ Err CompileCustomFunctions( void )
 ** Make sure order of functions matches that in LoadCustomFunctionTable().
 ** Parameters are: Name in UPPER CASE, Function, Index, Mode, NumParams
 */
-    err = CreateGlueToC( "CTEST0", i++, C_RETURNS_VALUE, 1 );
+    err = CreateGlueToC( "CALL-FUNCTION", i++, C_RETURNS_VOID, 0 );
     if( err < 0 ) return err;
-    err = CreateGlueToC( "CTEST1", i++, C_RETURNS_VOID, 2 );
+    err = CreateGlueToC( "TEST-FUN", i++, C_RETURNS_VOID, 0 );
     if( err < 0 ) return err;
+    err = CreateGlueToC( "FOREIGN-CALL", i++, C_RETURNS_VOID, 0 );
+    if( err < 0 ) return err;
+    err = CreateGlueToC( "DLOPEN", i++, C_RETURNS_VOID, 0 );
+    if( err < 0 ) return err;
+    err = CreateGlueToC( "DLCLOSE", i++, C_RETURNS_VOID, 0 );
+    if( err < 0 ) return err;
+    err = CreateGlueToC( "DLSYM", i++, C_RETURNS_VOID, 0 );
+    if( err < 0 ) return err;
+    err = CreateGlueToC( "SYS", i++, C_RETURNS_VOID, 0 );
+    if ( err < 0 ) return err;
 
     return 0;
 }
