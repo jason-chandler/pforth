@@ -1,6 +1,6 @@
 \ assumes existence of ../hello.cpp, outputting to hello.so
 
-: c-string swap over pad swap move here over + 0 swap c! here swap 1 + ;
+: c-string swap over pad dup >r swap move r@ over + 0 swap c! r> swap 1 + ;
 
 : Z" ['] S" execute c-string ;
 
