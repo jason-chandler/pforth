@@ -1,6 +1,6 @@
 \ assumes existence of ../hello.cpp, outputting to hello.so
 
-: c-string swap over here swap move here over + 0 swap c! here swap 1 + ;
+: c-string swap over pad swap move here over + 0 swap c! here swap 1 + ;
 
 : Z" ['] S" execute c-string ;
 
@@ -8,13 +8,15 @@
 : strconcat ( original-c-address original-len added-c-address added-len -- original-c-address new-len )
   >r over r@ + r> swap >r >r rot >r r@ r> r> swap >r >r rot + r> move r> r> ;
 
-
+\ ex. compile-cpp ./hello.so ../hello.cpp
+\ ex2. compile-cpp ./hello.so ../*.cpp
 : compile-cpp ( "output-file" "input-file" -- )
   S" g++ -shared -fPIC -o " pad swap dup >r 0 DO over i + over i + swap c@ swap c! LOOP SWAP DROP r> \ copy g++ raw string to pad location ( pad-address len )
   BL PARSE strconcat \ take the next word from TIB and use it as the output-file with -o
   S"  " strconcat \ add a space to the command
   BL PARSE strconcat \ add next word from TIB to the end of the output name string to be used as input
   c-string sys throw ; \ turn the whole thing into a c-style string and call C's system function on it
+
 
 S" ./hello.so" c-string dlopen
 
