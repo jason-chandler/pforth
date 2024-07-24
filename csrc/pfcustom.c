@@ -70,7 +70,7 @@ static void pf_dlsym_impl(void* lib_ptr, char* func_name) {
 
 
 
-static void pf_foreign_call_with_return_impl(void* (*func)(), int arg_count, ...) {
+static void* pf_foreign_call_with_return_impl(void* (*func)(), int arg_count, ...) {
     void* return_val = NULL;
     va_list args;
     va_start(args, arg_count);
@@ -91,10 +91,7 @@ static void pf_foreign_call_with_return_impl(void* (*func)(), int arg_count, ...
 
     va_end(args);
 
-    if(return_val != NULL) {
-       PUSH_DATA_STACK(return_val);
-    }
-
+    return return_val;
 }
 
 
@@ -118,7 +115,7 @@ static void pf_foreign_call_without_return_impl(void (*func)(), int arg_count, .
 
     va_end(args);
 
-    }
+}
 
 
 
@@ -201,18 +198,12 @@ static void pf_system() {
     pf_system_impl(program_name_ptr);
 }
 
-static void pf_foreign_call() {
-    int is_void_return = (int)POP_DATA_STACK;
+static void* pf_foreign_call() {
     int arg_count = (int)POP_DATA_STACK;
 
     void *(*func)();
-    void (*vfunc)();
 
-    if(is_void_return == 0) {
-        *(void**)(&func) = (void*)POP_DATA_STACK;
-    } {
-        *(void**)(&vfunc) = (void*)POP_DATA_STACK;
-    }
+    *(void**)(&func) = (void*)POP_DATA_STACK;
 
 
     // Collect arguments based on arg_count
@@ -221,11 +212,24 @@ static void pf_foreign_call() {
         args[i] = (void*)POP_DATA_STACK;
     }
 
-    if(is_void_return == 0) {
-        pf_foreign_call_with_return_impl(func, arg_count, args);
-    } else {
-        pf_foreign_call_without_return_impl(vfunc, arg_count, args);
+    return pf_foreign_call_with_return_impl(func, arg_count, args);
+}
+
+static void pf_foreign_call_void() {
+    int arg_count = (int)POP_DATA_STACK;
+
+    void (*vfunc)();
+
+    *(void**)(&vfunc) = (void*)POP_DATA_STACK;
+
+
+    // Collect arguments based on arg_count
+    void* args[10];
+    for (int i = 0; i < arg_count; i++) {
+        args[i] = (void*)POP_DATA_STACK;
     }
+
+    pf_foreign_call_without_return_impl(vfunc, arg_count, args);
 }
 
 static void pf_call_function() {
@@ -303,7 +307,7 @@ static void pf_dlclose() {
 ** Do not change the name of LoadCustomFunctionTable()!
 ** It is called by the pForth kernel.
 */
-#define NUM_CUSTOM_FUNCTIONS  (7)
+#define NUM_CUSTOM_FUNCTIONS  (8)
 CFunc0 CustomFunctionTable[NUM_CUSTOM_FUNCTIONS];
 
 Err LoadCustomFunctionTable( void )
@@ -311,10 +315,11 @@ Err LoadCustomFunctionTable( void )
     CustomFunctionTable[0] = pf_call_function;
     CustomFunctionTable[1] = test_fun;
     CustomFunctionTable[2] = pf_foreign_call;
-    CustomFunctionTable[3] = pf_dlopen;
-    CustomFunctionTable[4] = pf_dlclose;
-    CustomFunctionTable[5] = pf_dlsym;
-    CustomFunctionTable[6] = pf_system;
+    CustomFunctionTable[3] = pf_foreign_call_void;
+    CustomFunctionTable[4] = pf_dlopen;
+    CustomFunctionTable[5] = pf_dlclose;
+    CustomFunctionTable[6] = pf_dlsym;
+    CustomFunctionTable[7] = pf_system;
     return 0;
 }
 
@@ -328,6 +333,7 @@ CFunc0 CustomFunctionTable[] =
     (CFunc0) pf_call_function,
     (CFunc0) test_fun,
     (CFunc0) pf_foreign_call,
+    (CFunc0) pf_foreign_call_void,
     (CFunc0) pf_dlopen,
     (CFunc0) pf_dlclose,
     (CFunc0) pf_dlsym,
@@ -354,7 +360,9 @@ Err CompileCustomFunctions( void )
     if( err < 0 ) return err;
     err = CreateGlueToC( "TEST-FUN", i++, C_RETURNS_VOID, 0 );
     if( err < 0 ) return err;
-    err = CreateGlueToC( "FOREIGN-CALL", i++, C_RETURNS_VOID, 0 );
+    err = CreateGlueToC( "FOREIGN-CALL", i++, C_RETURNS_VALUE, 0 );
+    if( err < 0 ) return err;
+    err = CreateGlueToC( "FOREIGN-CALL-VOID", i++, C_RETURNS_VOID, 0 );
     if( err < 0 ) return err;
     err = CreateGlueToC( "DLOPEN", i++, C_RETURNS_VOID, 0 );
     if( err < 0 ) return err;
