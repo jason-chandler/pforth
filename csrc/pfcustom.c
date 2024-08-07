@@ -34,6 +34,28 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+static void test_fun(void);
+
+static void pf_dlopen_impl(char* lib_path);
+static void pf_dlopen(void);
+
+static void pf_dlclose(void);
+
+static void pf_dlsym_impl(void* lib_ptr, char* func);
+static void pf_dlsym(void);
+
+static void* pf_foreign_call_with_return_impl(void* (*func)(void), int arg_count, ...);
+static void pf_foreign_call_without_return_impl(void (*func)(void), int arg_count, ...);
+
+static void* pf_foreign_call(void);
+static void pf_foreign_call_void(void);
+
+static void call_function(char* lib_path, char* func_name, int arg_count, ...);
+static void pf_call_function(void);
+
+static void pf_system_impl(char* sys);
+static void pf_system(void);
+
 static void pf_dlopen_impl(char* lib_path) {
     void* handle = dlopen(lib_path, RTLD_LAZY);
     if (!handle) {
@@ -55,7 +77,7 @@ static void pf_dlsym_impl(void* lib_ptr, char* func_name) {
         return;
     }
 
-    void* (*func)();
+    void* (*func)(void);
     *(void**)(&func) = dlsym(handle, func_name);
     const char* dlsym_error = dlerror();
     if (dlsym_error) {
@@ -70,12 +92,12 @@ static void pf_dlsym_impl(void* lib_ptr, char* func_name) {
 
 
 
-static void* pf_foreign_call_with_return_impl(void* (*func)(), int arg_count, ...) {
+static void* pf_foreign_call_with_return_impl(void* (*func)(void), int arg_count, ...) {
     void* return_val = NULL;
     va_list args;
     va_start(args, arg_count);
     if (arg_count == 0) {
-        return_val = ((void* (*)())func)();
+        return_val = ((void* (*)(void))func)();
     } else if (arg_count == 1) {
         return_val = ((void* (*)(void*))func)(va_arg(args, void*));
     } else if (arg_count == 2) {
@@ -95,11 +117,11 @@ static void* pf_foreign_call_with_return_impl(void* (*func)(), int arg_count, ..
 }
 
 
-static void pf_foreign_call_without_return_impl(void (*func)(), int arg_count, ...) {
+static void pf_foreign_call_without_return_impl(void (*func)(void), int arg_count, ...) {
     va_list args;
     va_start(args, arg_count);
     if (arg_count == 0) {
-        ((void (*)())func)();
+        ((void (*)(void))func)();
     } else if (arg_count == 1) {
         ((void (*)(void*))func)(va_arg(args, void*));
     } else if (arg_count == 2) {
@@ -130,7 +152,7 @@ static void call_function(char* lib_path, char* func_name, int arg_count, ...) {
         return;
     }
 
-    void *(*func)();
+    void *(*func)(void);
     *(void**)(&func) = dlsym(handle, func_name);
     const char* dlsym_error = dlerror();
     if (dlsym_error) {
@@ -144,7 +166,7 @@ static void call_function(char* lib_path, char* func_name, int arg_count, ...) {
     va_list args;
     va_start(args, arg_count);
     if (arg_count == 0) {
-        ((void (*)())func)();
+        ((void (*)(void))func)();
     } else if (arg_count == 1) {
         ((void (*)(void*))func)(va_arg(args, void*));
     } else if (arg_count == 2) {
@@ -188,7 +210,7 @@ static void pf_system_impl(char* sys) {
 /*     MSG_NUM_D(", Val2 = ", Val2); */
 /* } */
 
-static void pf_system() {
+static void pf_system(void) {
     int external_program_name_length = POP_DATA_STACK;
     char* program_name_ptr = (char*)malloc(sizeof(char)*(external_program_name_length + 1));
     const char* program_name = (const char*)POP_DATA_STACK;
@@ -198,10 +220,10 @@ static void pf_system() {
     pf_system_impl(program_name_ptr);
 }
 
-static void* pf_foreign_call() {
+static void* pf_foreign_call(void) {
     int arg_count = (int)POP_DATA_STACK;
 
-    void *(*func)();
+    void *(*func)(void);
 
     *(void**)(&func) = (void*)POP_DATA_STACK;
 
@@ -215,10 +237,10 @@ static void* pf_foreign_call() {
     return pf_foreign_call_with_return_impl(func, arg_count, args);
 }
 
-static void pf_foreign_call_void() {
+static void pf_foreign_call_void(void) {
     int arg_count = (int)POP_DATA_STACK;
 
-    void (*vfunc)();
+    void (*vfunc)(void);
 
     *(void**)(&vfunc) = (void*)POP_DATA_STACK;
 
@@ -232,7 +254,7 @@ static void pf_foreign_call_void() {
     pf_foreign_call_without_return_impl(vfunc, arg_count, args);
 }
 
-static void pf_call_function() {
+static void pf_call_function(void) {
     int arg_count = (int)POP_DATA_STACK;
     int func_name_length = (int)POP_DATA_STACK;
     char* func_name_ptr = (char*)malloc(sizeof(char)*(func_name_length + 1));
@@ -257,12 +279,12 @@ static void pf_call_function() {
     call_function(lib_path_ptr, func_name_ptr, arg_count, args);
     }
 
-static void test_fun() {
+static void test_fun(void) {
     int i = (int)POP_DATA_STACK;
     printf("%i", i);
 }
 
-static void pf_dlsym() {
+static void pf_dlsym(void) {
     int func_name_length = (int)POP_DATA_STACK;
     char* func_name_ptr = (char*)malloc(sizeof(char)*(func_name_length + 1));
     const char* func_name = (const char*)POP_DATA_STACK;
@@ -275,7 +297,7 @@ static void pf_dlsym() {
 }
 
 
-static void pf_dlopen() {
+static void pf_dlopen(void) {
     int lib_path_length = (int)POP_DATA_STACK;
     char* lib_path_ptr = (char*)malloc(sizeof(char)*(lib_path_length + 1));
     const char* lib_path = (const char*)POP_DATA_STACK;
@@ -286,7 +308,7 @@ static void pf_dlopen() {
     pf_dlopen_impl(lib_path_ptr);
 }
 
-static void pf_dlclose() {
+static void pf_dlclose(void) {
     void* handle = (void*)POP_DATA_STACK;
     dlclose(handle);
 }

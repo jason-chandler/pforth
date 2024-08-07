@@ -29,15 +29,15 @@
   pad swap dup >r 0 DO over i + over i + swap c@ swap c! LOOP SWAP DROP r> \ copy g++ raw string to pad location ( pad-address len )
   S" G" strconcat \ take the next word from TIB and use it as the output-file with -o
   lib-number number-to-string string-to-buffer strconcat S" strbuffer" evaluate 
-  S"  -I./forth-extension -isystem ./forth-extension -fpermissive /home/jason/pforth/csrc/libPForth_lib.a " strconcat 
+  S"  -I./forth-extension -isystem ./forth-extension -fpermissive " strconcat
   \ add a # until we reach a lib name we haven't used yet
   S" ./forth-extension/*.cpp ./forth-extension/*.a" strconcat 
   \ add next word from TIB to the end of the output name string to be used as input
-  c-string sys throw pad 86 chars + 1 lib-number begin swap 1+ swap 10 / dup 0 = until 
+  c-string sys throw pad 84 chars + 1 lib-number begin swap 1+ swap 10 / dup 0 = until
   drop c-string over over dlopen TO dev-lib delete-file throw
   lib-number 1+ to lib-number ; \ turn the whole thing into a c-style string and call C's system function on it
 
-: ~cpp S" ../forth-extension/" string-to-buffer BL parse strconcat
+: ~cpp S" ./forth-extension/" string-to-buffer BL parse strconcat
        w/o create-file throw
        begin >r 126 parse dup r> swap >r >r r@
              write-file throw r> r> dup
